@@ -1,0 +1,8 @@
+{
+  "name": "comic-downloader-api",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}
