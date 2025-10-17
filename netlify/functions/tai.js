@@ -12,9 +12,9 @@ exports.handler = async function (event) {
   return jsonResponse(data);
 };
 
-// ======================================
-// 🧠 Hàm lấy dữ liệu từ URL truyện
-// ======================================
+// ======================
+// 🧠 HÀM LẤY ẢNH
+// ======================
 async function getComicData(url) {
   try {
     const headers = {
@@ -24,82 +24,80 @@ async function getComicData(url) {
     };
 
     const res = await fetch(url, { headers });
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const html = await res.text();
+    let html = await res.text();
+
+    // ✅ Tải thêm nội dung trong <noscript> (vì nhiều ảnh thực nằm ở đây)
+    html = html.replace(/<noscript>([\s\S]*?)<\/noscript>/g, (_, inner) => inner);
+
     const $ = cheerio.load(html);
-
     const title = $("title").text().trim() || "Không tìm thấy tiêu đề";
     const base = new URL(url).origin;
+    const imgs = new Set();
 
-    const comicImages = new Set();
+    $("img").each((_, el) => {
+      const allSrcs = [];
 
-    // ✅ Quét toàn bộ <img> trong trang
-    $("img").each((_, img) => {
-      const attrs = [
-        $(img).attr("src"),
-        $(img).attr("data-src"),
-        $(img).attr("data-lazy-src"),
-      ];
+      // lấy tất cả các nguồn ảnh có thể
+      const src = $(el).attr("src");
+      const dataSrc = $(el).attr("data-src");
+      const lazySrc = $(el).attr("data-lazy-src");
+      const srcset = $(el).attr("srcset");
+      const dataSrcset = $(el).attr("data-srcset");
 
-      // Xử lý srcset (nhiều URL cách nhau bằng dấu phẩy)
-      const srcset = $(img).attr("srcset") || $(img).attr("data-srcset");
-      if (srcset) {
-        const urls = srcset.split(",").map((s) => s.trim().split(" ")[0]);
-        attrs.push(...urls);
-      }
+      [src, dataSrc, lazySrc].forEach((v) => v && allSrcs.push(v));
+      [srcset, dataSrcset].forEach((set) => {
+        if (set) {
+          const urls = set.split(",").map((s) => s.trim().split(" ")[0]);
+          allSrcs.push(...urls);
+        }
+      });
 
-      // Duyệt qua tất cả link ảnh và lọc hợp lệ
-      for (const src of attrs) {
-        if (!src) continue;
-        const fullUrl = new URL(src.trim(), base).href;
-        if (isValidImage(fullUrl)) comicImages.add(fullUrl);
+      for (const s of allSrcs) {
+        try {
+          const full = new URL(s.trim(), base).href;
+          if (isValidImage(full)) imgs.add(full);
+        } catch (_) {}
       }
     });
 
     return {
       source_url: url,
       title,
-      total_images: comicImages.size,
-      comic_images: Array.from(comicImages),
+      total_images: imgs.size,
+      comic_images: Array.from(imgs),
     };
-  } catch (err) {
-    return { error: `Không thể lấy dữ liệu: ${err.message}` };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 
-// ======================================
-// 🧩 Hàm kiểm tra ảnh hợp lệ
-// ======================================
+// ======================
+// 🔍 Lọc file ảnh hợp lệ
+// ======================
 function isValidImage(link) {
-  const lower = link.toLowerCase();
-
-  const validExt = [".jpg", ".jpeg", ".png", ".webp"];
-  const hasValidExt = validExt.some((ext) => lower.includes(ext));
-
-  const blacklist = [
+  const l = link.toLowerCase();
+  const valid = [".jpg", ".jpeg", ".png", ".webp"];
+  const bad = [
     "ads",
     "banner",
-    "icon",
     "logo",
+    "icon",
     "gif",
     "emoji",
-    "wp-content/plugins",
-    "wp-includes",
+    "plugin",
     "analytics",
+    "wp-includes",
   ];
-  const isClean = !blacklist.some((bad) => lower.includes(bad));
-
-  return hasValidExt && isClean;
+  return valid.some((v) => l.includes(v)) && !bad.some((b) => l.includes(b));
 }
 
-// ======================================
-// 🧠 Hàm trả JSON
-// ======================================
-function jsonResponse(data, status = 200) {
+// ======================
+function jsonResponse(obj, code = 200) {
   return {
-    statusCode: status,
+    statusCode: code,
     headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(data, null, 2),
+    body: JSON.stringify(obj, null, 2),
   };
 }
