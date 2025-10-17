@@ -2,7 +2,7 @@
   functions = "netlify/functions"
   publish = "."
 
-# ✅ Redirect mọi request có đường dẫn /tai... về serverless function /tai
+# ✅ Cho phép tất cả các request /tai và /tai/* chuyển vào function
 [[redirects]]
   from = "/tai"
   to = "/.netlify/functions/tai"
