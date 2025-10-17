@@ -20,7 +20,7 @@ async function getComicData(url) {
     const headers = {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-      "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8"
+      "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
     };
 
     const res = await fetch(url, { headers });
@@ -32,45 +32,36 @@ async function getComicData(url) {
     const title = $("title").text().trim() || "Không tìm thấy tiêu đề";
     const base = new URL(url).origin;
 
-    let comicImages = [];
+    const comicImages = new Set();
 
-    // Ưu tiên vùng đọc truyện
-    const containers = [
-      "div.reading-content",
-      "div.entry-content",
-      "div.main-content",
-      "div#content",
-    ];
+    // ✅ Quét toàn bộ <img> trong trang
+    $("img").each((_, img) => {
+      const attrs = [
+        $(img).attr("src"),
+        $(img).attr("data-src"),
+        $(img).attr("data-lazy-src"),
+      ];
 
-    for (const sel of containers) {
-      const container = $(sel);
-      if (container.length > 0) {
-        container.find("img").each((_, img) => {
-          const src =
-            $(img).attr("data-src") ||
-            $(img).attr("data-lazy-src") ||
-            $(img).attr("src");
-
-          if (src) {
-            const fullUrl = new URL(src.trim(), base).href;
-
-            // Lọc chỉ giữ ảnh hợp lệ
-            if (isValidImage(fullUrl)) {
-              comicImages.push(fullUrl);
-            }
-          }
-        });
+      // Xử lý srcset (nhiều URL cách nhau bằng dấu phẩy)
+      const srcset = $(img).attr("srcset") || $(img).attr("data-srcset");
+      if (srcset) {
+        const urls = srcset.split(",").map((s) => s.trim().split(" ")[0]);
+        attrs.push(...urls);
       }
-    }
 
-    // Xóa trùng
-    comicImages = [...new Set(comicImages)];
+      // Duyệt qua tất cả link ảnh và lọc hợp lệ
+      for (const src of attrs) {
+        if (!src) continue;
+        const fullUrl = new URL(src.trim(), base).href;
+        if (isValidImage(fullUrl)) comicImages.add(fullUrl);
+      }
+    });
 
     return {
       source_url: url,
       title,
-      total_images: comicImages.length,
-      comic_images: comicImages
+      total_images: comicImages.size,
+      comic_images: Array.from(comicImages),
     };
   } catch (err) {
     return { error: `Không thể lấy dữ liệu: ${err.message}` };
@@ -83,11 +74,9 @@ async function getComicData(url) {
 function isValidImage(link) {
   const lower = link.toLowerCase();
 
-  // Chỉ chấp nhận file ảnh phổ biến
   const validExt = [".jpg", ".jpeg", ".png", ".webp"];
-  const hasValidExt = validExt.some(ext => lower.includes(ext));
+  const hasValidExt = validExt.some((ext) => lower.includes(ext));
 
-  // Loại bỏ quảng cáo / icon / tracking
   const blacklist = [
     "ads",
     "banner",
@@ -96,9 +85,10 @@ function isValidImage(link) {
     "gif",
     "emoji",
     "wp-content/plugins",
-    "wp-includes"
+    "wp-includes",
+    "analytics",
   ];
-  const isClean = !blacklist.some(bad => lower.includes(bad));
+  const isClean = !blacklist.some((bad) => lower.includes(bad));
 
   return hasValidExt && isClean;
 }
