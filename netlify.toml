@@ -2,14 +2,16 @@
   functions = "netlify/functions"
   publish = "."
 
+# 🔹 Route chính /tai/*
 [[redirects]]
-  from = "/tai"
+  from = "/tai/*"
   to = "/.netlify/functions/tai"
   status = 200
   force = true
 
+# 🏠 Route /home — hiển thị hướng dẫn API
 [[redirects]]
-  from = "/tai/*"
+  from = "/home"
   to = "/.netlify/functions/tai"
   status = 200
   force = true
