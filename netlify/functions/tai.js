@@ -1,6 +1,33 @@
 const cheerio = require("cheerio");
 
 exports.handler = async function (event) {
+  const reqPath = event.path;
+
+  // 🏠 /home — hiển thị hướng dẫn API
+  if (reqPath === "/home") {
+    return jsonResponse({
+      project: "📘 API Tải Ảnh Truyện (Netlify)",
+      author: "truyentranh210",
+      version: "1.0.0",
+      updated: new Date().toISOString(),
+      description:
+        "API dùng để lấy toàn bộ ảnh từ một trang truyện bất kỳ. Hỗ trợ query ?url=<link-truyen>",
+      endpoints: {
+        "/home": "Hiển thị hướng dẫn API (trang này)",
+        "/tai?url=<link>": "Lấy ảnh từ link truyện cụ thể",
+      },
+      example: {
+        method: "GET",
+        usage: "/tai?url=https://example.com/truyen-abc",
+        note: "API sẽ trả về danh sách ảnh và tiêu đề của truyện",
+      },
+      message: "✅ API hoạt động tốt! Hãy thử /tai?url=<link>",
+    });
+  }
+
+  // ======================
+  // 🔹 PHẦN GỐC: LẤY ẢNH TRUYỆN
+  // ======================
   const params = new URLSearchParams(event.queryStringParameters);
   const comicUrl = params.get("url");
 
@@ -27,8 +54,6 @@ async function getComicData(url) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     let html = await res.text();
-
-    // ✅ Tải thêm nội dung trong <noscript> (vì nhiều ảnh thực nằm ở đây)
     html = html.replace(/<noscript>([\s\S]*?)<\/noscript>/g, (_, inner) => inner);
 
     const $ = cheerio.load(html);
@@ -38,8 +63,6 @@ async function getComicData(url) {
 
     $("img").each((_, el) => {
       const allSrcs = [];
-
-      // lấy tất cả các nguồn ảnh có thể
       const src = $(el).attr("src");
       const dataSrc = $(el).attr("data-src");
       const lazySrc = $(el).attr("data-lazy-src");
